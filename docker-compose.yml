@@ -64,14 +64,15 @@ services:
       - 5601:5601
     networks:
       - elastic
-  logstash:
-    build: ./logstash
-    volumes:
-      - ./logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml
-      - ./logstash/config/pipelines.yml:/usr/share/logstash/config/pipelines.yml
-    networks:
-        - elastic
-  mysql-db:
+  #logstash:
+  #  build: ./logstash
+  #  volumes:
+  #    - ./logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml
+  #    - ./logstash/config/pipelines.yml:/usr/share/logstash/config/pipelines.yml
+  #    - ./logstash/pipeline/:/usr/share/logstash/pipeline/
+  #  networks:
+  #      - elastic
+  mysqldb:
     image: mysql
     command: --default-authentication-plugin=mysql_native_password
     restart: always
@@ -88,15 +89,50 @@ services:
     restart: always
     environment:
       MYSQL_ROOT_PASSWORD: changeme
-      PMA_HOST: mysql-db
+      PMA_HOST: mysqldb
     ports:
       - 8080:80
     networks:
       - elastic
   flask-app:
     build: ./flask-app
+    environment:
+      - RABBITMQ_USERNAME=admin
+      - RABBITMQ_PASSWORD=changeme
+      - RABBITMQ_URL=rabbitmq
     ports:
       - "5000:5000"
+    networks:
+      - elastic
+  rabbitmq:
+    image: bitnami/rabbitmq:latest
+    ports:
+      - "4369:4369"
+      - "5672:5672"
+      - "25672:25672"
+      - "15672:15672"
+    volumes:
+      - "rabbitmq_data:/bitnami"
+    environment:
+      - RABBITMQ_USERNAME=admin
+      - RABBITMQ_PASSWORD=changeme
+    networks:
+        - elastic
+  worker:
+    build:
+      context: ./flask-app
+    hostname: flask-app
+    entrypoint: celery
+    command: -A celery_app.celery worker --loglevel=info
+    environment:
+      - RABBITMQ_USERNAME=admin
+      - RABBITMQ_PASSWORD=changeme
+      - RABBITMQ_URL=rabbitmq
+    depends_on:
+      - "flask-app"
+      - "rabbitmq"
+    networks:
+        - elastic
 
 volumes:
   data01:
@@ -104,6 +140,8 @@ volumes:
   data02:
     driver: local
   data03:
+    driver: local
+  rabbitmq_data:
     driver: local
 
 networks:

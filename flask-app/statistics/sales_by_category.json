@@ -1,0 +1,45 @@
+{
+    "aggs": {
+      "group_date": {
+        "date_histogram": {
+          "field": "order_date",
+          "fixed_interval": "3h",
+          "time_zone": "Europe/Paris",
+          "min_doc_count": 1
+        },
+        "aggs": {
+          "group_category": {
+            "terms": {
+              "field": "category.keyword",
+              "order": {
+                "3h_sum": "desc"
+              },
+              "size": 5
+            },
+            "aggs": {
+              "3h_sum": {
+                "sum": {
+                  "field": "total_quantity"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "size": 0,
+    "query": {
+      "bool": {
+        "filter": [
+          {
+            "range": {
+              "order_date": {
+                "gte": "now-90d",
+                "lte": "now"
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
